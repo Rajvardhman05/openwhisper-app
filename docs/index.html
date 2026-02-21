@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenWhisper - Free Voice-to-Text App for macOS | Offline Speech Recognition</title>
+    <meta name="description" content="OpenWhisper is a free, open-source voice-to-text app for macOS. Transcribe speech to text offline on your Mac using OpenAI Whisper. 100% local, private, no cloud. Works in any app.">
+    <meta name="keywords" content="voice to text mac, speech to text macos, free dictation app mac, offline transcription macos, whisper macos app, mac voice typing, macOS speech recognition, dictation software mac">
+    <link rel="canonical" href="https://rajvardhman05.github.io/openwhisper-app/">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="OpenWhisper - Free Voice-to-Text App for macOS">
+    <meta property="og:description" content="Open-source, offline speech-to-text for Mac. Hold a key, speak, and your words appear at the cursor. 100% local, nothing leaves your machine.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://rajvardhman05.github.io/openwhisper-app/">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="OpenWhisper - Free Voice-to-Text App for macOS">
+    <meta name="twitter:description" content="Open-source, offline speech-to-text for Mac. Hold a key, speak, and your words appear at the cursor. 100% local, nothing leaves your machine.">
+
+    <!-- Schema.org: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "OpenWhisper",
+        "description": "Free, open-source voice-to-text app for macOS. Transcribe speech to text offline on your Mac using OpenAI Whisper. 100% local and private.",
+        "url": "https://rajvardhman05.github.io/openwhisper-app/",
+        "downloadUrl": "https://github.com/Rajvardhman05/openwhisper-app",
+        "operatingSystem": "macOS 14.0 (Sonoma) or later",
+        "applicationCategory": "UtilitiesApplication",
+        "softwareVersion": "1.0",
+        "author": {
+            "@type": "Person",
+            "name": "Rajvardhman",
+            "url": "https://github.com/Rajvardhman05"
+        },
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "featureList": [
+            "100% local speech recognition",
+            "Works offline without internet",
+            "Hold-to-talk hotkey",
+            "Works in any macOS app",
+            "AI grammar cleanup via local LLM",
+            "29 language support",
+            "Menu bar app",
+            "OpenAI Whisper powered"
+        ],
+        "softwareRequirements": "Apple Silicon Mac (M1, M2, M3, M4), macOS 14.0 Sonoma or later"
+    }
+    </script>
+
+    <!-- Schema.org: FAQPage -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "Is OpenWhisper really free?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. OpenWhisper is free and open-source under the MIT license. No subscriptions, no trials, no hidden costs."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Does OpenWhisper send my voice to the cloud?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "No. All speech recognition happens locally on your Mac using WhisperKit. No audio data ever leaves your machine."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Does OpenWhisper work offline?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. After the one-time model download, OpenWhisper works completely offline. No internet connection needed for transcription."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How accurate is OpenWhisper's transcription?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "OpenWhisper uses OpenAI's Whisper model via WhisperKit, which is one of the most accurate speech recognition models available. The base model handles most dictation well; the small model is even more accurate for longer or multilingual content."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Do I need Ollama for OpenWhisper to work?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "No. Ollama is optional. It provides AI grammar cleanup such as removing filler words and fixing punctuation. Without it, OpenWhisper still transcribes perfectly using the raw Whisper output."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What is the difference between OpenWhisper and macOS built-in dictation?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "macOS dictation sends audio to Apple's servers for processing. OpenWhisper processes everything locally on your Mac, offering better privacy, full offline support, and more control with model selection and optional LLM grammar cleanup."
+                }
+            }
+        ]
+    }
+    </script>
+
+    <style>
+        /* Reset & Base */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #1e2a45;
+            --teal: #14b8a6;
+            --teal-dark: #0d9488;
+            --teal-glow: rgba(20, 184, 166, 0.15);
+            --white: #f8fafc;
+            --gray-100: #e2e8f0;
+            --gray-300: #94a3b8;
+            --gray-500: #64748b;
+            --gray-700: #334155;
+            --green: #22c55e;
+            --red: #ef4444;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-stack);
+            background: var(--bg-primary);
+            color: var(--gray-100);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a {
+            color: var(--teal);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        a:hover {
+            color: var(--teal-dark);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 46, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(20, 184, 166, 0.12);
+            z-index: 100;
+            padding: 0 24px;
+        }
+
+        nav .nav-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 60px;
+        }
+
+        .nav-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--white);
+            letter-spacing: -0.02em;
+        }
+        .nav-logo span {
+            color: var(--teal);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 28px;
+            list-style: none;
+        }
+        .nav-links a {
+            color: var(--gray-300);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover {
+            color: var(--teal);
+        }
+
+        .nav-github {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--teal);
+            color: var(--bg-primary) !important;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .nav-github:hover {
+            background: var(--teal-dark);
+            color: var(--bg-primary) !important;
+        }
+
+        .nav-hamburger {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .nav-hamburger span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: var(--gray-300);
+            margin: 5px 0;
+            transition: all 0.3s;
+        }
+
+        /* Hero */
+        .hero {
+            padding: 140px 0 80px;
+            text-align: center;
+            background: radial-gradient(ellipse at 50% 0%, rgba(20, 184, 166, 0.08) 0%, transparent 70%);
+        }
+
+        .hero-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: var(--teal-glow);
+            border: 1px solid rgba(20, 184, 166, 0.25);
+            border-radius: 20px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--teal);
+            margin-bottom: 24px;
+            letter-spacing: 0.02em;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.25rem, 5vw, 3.5rem);
+            font-weight: 800;
+            color: var(--white);
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+            margin-bottom: 20px;
+        }
+        .hero h1 .highlight {
+            color: var(--teal);
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1rem, 2vw, 1.25rem);
+            color: var(--gray-300);
+            max-width: 640px;
+            margin: 0 auto 36px;
+            line-height: 1.6;
+        }
+
+        .hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--teal);
+            color: var(--bg-primary);
+            padding: 14px 32px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .hero-cta:hover {
+            background: var(--teal-dark);
+            color: var(--bg-primary);
+            transform: translateY(-1px);
+        }
+
+        .hero-meta {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            font-size: 0.8125rem;
+            color: var(--gray-500);
+        }
+        .hero-meta span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Section Shared */
+        section {
+            padding: 80px 0;
+        }
+
+        .section-label {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--teal);
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+            font-weight: 800;
+            color: var(--white);
+            letter-spacing: -0.02em;
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+
+        .section-desc {
+            font-size: 1.0625rem;
+            color: var(--gray-300);
+            max-width: 600px;
+            margin-bottom: 48px;
+        }
+
+        .section-center {
+            text-align: center;
+        }
+        .section-center .section-desc {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 32px 28px;
+            transition: border-color 0.3s, transform 0.3s;
+        }
+        .feature-card:hover {
+            border-color: rgba(20, 184, 166, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .feature-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--teal-glow);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+        .feature-icon svg {
+            width: 22px;
+            height: 22px;
+            stroke: var(--teal);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .feature-card h3 {
+            font-size: 1.0625rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 8px;
+        }
+        .feature-card p {
+            font-size: 0.9rem;
+            color: var(--gray-300);
+            line-height: 1.6;
+        }
+
+        /* Comparison Table */
+        .comparison-wrapper {
+            overflow-x: auto;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9375rem;
+            min-width: 600px;
+        }
+
+        .comparison-table thead th {
+            background: var(--bg-card);
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 700;
+            color: var(--white);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .comparison-table thead th:first-child {
+            border-top-left-radius: 14px;
+        }
+        .comparison-table thead th:last-child {
+            border-top-right-radius: 14px;
+        }
+
+        .comparison-table tbody td {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: top;
+        }
+        .comparison-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .comparison-table tbody td:first-child {
+            font-weight: 600;
+            color: var(--gray-100);
+            white-space: nowrap;
+        }
+
+        .comparison-table .col-ow {
+            color: var(--teal);
+            font-weight: 600;
+        }
+        .comparison-table .col-cloud {
+            color: var(--gray-500);
+        }
+
+        .check {
+            color: var(--green);
+            font-weight: 700;
+        }
+        .cross {
+            color: var(--red);
+            font-weight: 700;
+        }
+
+        /* Install */
+        .install-steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .install-step {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 28px 24px;
+            position: relative;
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--teal);
+            color: var(--bg-primary);
+            border-radius: 50%;
+            font-size: 0.875rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .install-step h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 8px;
+        }
+        .install-step p {
+            font-size: 0.875rem;
+            color: var(--gray-300);
+            line-height: 1.6;
+        }
+
+        .code-block {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 24px 28px;
+            overflow-x: auto;
+            font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+            line-height: 1.8;
+            color: var(--gray-100);
+        }
+        .code-block .comment {
+            color: var(--gray-500);
+        }
+        .code-block .cmd {
+            color: var(--teal);
+        }
+
+        /* FAQ */
+        .faq-list {
+            max-width: 760px;
+            margin: 0 auto;
+        }
+
+        .faq-item {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .faq-item:last-child {
+            border-bottom: none;
+        }
+
+        .faq-question {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            text-align: left;
+            gap: 16px;
+        }
+        .faq-question h3 {
+            font-size: 1.0625rem;
+            font-weight: 600;
+            color: var(--white);
+            font-family: var(--font-stack);
+        }
+        .faq-question:hover h3 {
+            color: var(--teal);
+        }
+
+        .faq-chevron {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            stroke: var(--gray-500);
+            fill: none;
+            stroke-width: 2;
+            transition: transform 0.3s;
+        }
+
+        .faq-item.open .faq-chevron {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease;
+        }
+        .faq-item.open .faq-answer {
+            max-height: 300px;
+        }
+
+        .faq-answer p {
+            padding: 0 0 24px;
+            font-size: 0.9375rem;
+            color: var(--gray-300);
+            line-height: 1.7;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        .footer-logo {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 12px;
+        }
+        .footer-logo span {
+            color: var(--teal);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .footer-links a {
+            color: var(--gray-500);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .footer-links a:hover {
+            color: var(--teal);
+        }
+
+        .footer-copy {
+            font-size: 0.8125rem;
+            color: var(--gray-700);
+        }
+
+        /* Responsive */
+        @media (max-width: 860px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .install-steps {
+                grid-template-columns: 1fr;
+            }
+            .nav-links {
+                display: none;
+            }
+            .nav-hamburger {
+                display: block;
+            }
+            nav.open .nav-links {
+                display: flex;
+                flex-direction: column;
+                position: absolute;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: rgba(26, 26, 46, 0.98);
+                padding: 20px 24px;
+                gap: 16px;
+                border-bottom: 1px solid rgba(20, 184, 166, 0.12);
+            }
+        }
+
+        @media (max-width: 560px) {
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero {
+                padding: 120px 0 60px;
+            }
+            .hero-meta {
+                flex-direction: column;
+                gap: 8px;
+                align-items: center;
+            }
+            section {
+                padding: 60px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav id="nav">
+    <div class="nav-inner">
+        <div class="nav-logo">Open<span>Whisper</span></div>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#comparison">Compare</a></li>
+            <li><a href="#install">Install</a></li>
+            <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <a href="https://github.com/Rajvardhman05/openwhisper-app" class="nav-github" rel="noopener" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub
+        </a>
+        <button class="nav-hamburger" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="Toggle navigation menu">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-badge">Open Source &middot; MIT License</div>
+        <h1>Free <span class="highlight">Voice-to-Text</span> for macOS</h1>
+        <p class="hero-subtitle">
+            Open-source speech-to-text that runs entirely on your Mac.
+            Hold a key, speak, release &mdash; text appears at your cursor.
+            100% local. No cloud. No subscription.
+        </p>
+        <a href="https://github.com/Rajvardhman05/openwhisper-app" class="hero-cta" rel="noopener" target="_blank">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            Get OpenWhisper on GitHub
+        </a>
+        <div class="hero-meta">
+            <span>macOS 14.0+ Sonoma</span>
+            <span>Apple Silicon (M1/M2/M3/M4)</span>
+            <span>Powered by OpenAI Whisper</span>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+    <div class="container section-center">
+        <span class="section-label">Features</span>
+        <h2 class="section-title">Everything you need for voice typing on Mac</h2>
+        <p class="section-desc">
+            OpenWhisper uses WhisperKit to run OpenAI's Whisper model directly on your Mac's
+            Neural Engine. Fast, accurate, and completely private.
+        </p>
+        <div class="features-grid">
+            <!-- Card 1: Local & Private -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                </div>
+                <h3>Local and Private</h3>
+                <p>All speech recognition runs on your Mac. No audio is ever uploaded to any server. Your voice data stays on your machine.</p>
+            </div>
+            <!-- Card 2: Works Offline -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                </div>
+                <h3>Works Offline</h3>
+                <p>After a one-time model download, OpenWhisper works without any internet connection. Transcribe speech to text anywhere.</p>
+            </div>
+            <!-- Card 3: Hold-to-Talk -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </div>
+                <h3>Hold-to-Talk</h3>
+                <p>Hold the Right Option key, speak, and release. Your transcribed text appears instantly at the cursor. Simple and fast.</p>
+            </div>
+            <!-- Card 4: Works in Any App -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <h3>Works in Any App</h3>
+                <p>VS Code, Terminal, Chrome, Slack, Notes, Pages, Word &mdash; OpenWhisper pastes text anywhere you can type on macOS.</p>
+            </div>
+            <!-- Card 5: AI Grammar Cleanup -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </div>
+                <h3>AI Grammar Cleanup</h3>
+                <p>Optional local LLM via Ollama removes filler words like "um" and "uh", fixes grammar and punctuation &mdash; all on-device.</p>
+            </div>
+            <!-- Card 6: 29 Languages -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                </div>
+                <h3>29 Languages</h3>
+                <p>English, Spanish, French, German, Hindi, Chinese, Japanese, and 22 more languages with automatic language detection.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Comparison -->
+<section id="comparison" style="background: var(--bg-secondary);">
+    <div class="container">
+        <span class="section-label">Comparison</span>
+        <h2 class="section-title">OpenWhisper vs Cloud Dictation Services</h2>
+        <p class="section-desc">
+            See how OpenWhisper compares to cloud-based speech-to-text services like Wispr Flow, Otter.ai, and others.
+        </p>
+        <div class="comparison-wrapper">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>OpenWhisper</th>
+                        <th>Cloud Services</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Privacy</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> 100% local &mdash; nothing leaves your Mac</td>
+                        <td class="col-cloud"><span class="cross">&#10007;</span> Voice uploaded to remote servers</td>
+                    </tr>
+                    <tr>
+                        <td>Internet</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> Works offline</td>
+                        <td class="col-cloud"><span class="cross">&#10007;</span> Requires internet</td>
+                    </tr>
+                    <tr>
+                        <td>Cost</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> Free and open-source</td>
+                        <td class="col-cloud"><span class="cross">&#10007;</span> $10-20/month subscriptions</td>
+                    </tr>
+                    <tr>
+                        <td>Latency</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> Instant on-device processing</td>
+                        <td class="col-cloud"><span class="cross">&#10007;</span> Network round-trip delay</td>
+                    </tr>
+                    <tr>
+                        <td>Resource usage</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> Under 100 MB RAM when idle</td>
+                        <td class="col-cloud"><span class="cross">&#10007;</span> 400-800 MB RAM</td>
+                    </tr>
+                    <tr>
+                        <td>Data collection</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> None</td>
+                        <td class="col-cloud"><span class="cross">&#10007;</span> Voice data stored on third-party servers</td>
+                    </tr>
+                    <tr>
+                        <td>Accuracy</td>
+                        <td class="col-ow"><span class="check">&#10003;</span> OpenAI Whisper (state-of-the-art)</td>
+                        <td class="col-cloud">Varies</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- Install -->
+<section id="install">
+    <div class="container">
+        <span class="section-label">Installation</span>
+        <h2 class="section-title">How to Install OpenWhisper on macOS</h2>
+        <p class="section-desc">
+            Build from source in under two minutes. Requires macOS 14.0+ and Apple Silicon.
+        </p>
+        <div class="install-steps">
+            <div class="install-step">
+                <div class="step-number">1</div>
+                <h3>Clone the repository</h3>
+                <p>Download the OpenWhisper source code from GitHub to your Mac.</p>
+            </div>
+            <div class="install-step">
+                <div class="step-number">2</div>
+                <h3>Build the app</h3>
+                <p>Run the build script. The first build downloads dependencies and takes about two minutes.</p>
+            </div>
+            <div class="install-step">
+                <div class="step-number">3</div>
+                <h3>Launch OpenWhisper</h3>
+                <p>Open the app, grant microphone and accessibility permissions, and start dictating.</p>
+            </div>
+        </div>
+        <div class="code-block">
+            <span class="comment"># Clone the repo</span><br>
+            <span class="cmd">git clone</span> https://github.com/Rajvardhman05/openwhisper-app.git<br>
+            <span class="cmd">cd</span> openwhisper-app<br><br>
+            <span class="comment"># Build the app</span><br>
+            <span class="cmd">bash</span> build.sh<br><br>
+            <span class="comment"># Launch</span><br>
+            <span class="cmd">open</span> build/OpenWhisper.app
+        </div>
+    </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="background: var(--bg-secondary);">
+    <div class="container section-center">
+        <span class="section-label">FAQ</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+        <p class="section-desc">
+            Common questions about OpenWhisper, the free voice-to-text app for macOS.
+        </p>
+        <div class="faq-list">
+            <div class="faq-item">
+                <button class="faq-question" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false">
+                    <h3>Is OpenWhisper really free?</h3>
+                    <svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. OpenWhisper is completely free and open-source under the MIT license. There are no subscriptions, no trials, no in-app purchases, and no hidden costs. You can use it, modify it, and distribute it freely.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false">
+                    <h3>Does OpenWhisper send my voice to the cloud?</h3>
+                    <svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer">
+                    <p>No. All speech recognition happens locally on your Mac using WhisperKit, which runs OpenAI's Whisper model on Apple's Neural Engine. No audio data ever leaves your machine. The only network calls are a one-time model download and optional Ollama API calls on localhost.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false">
+                    <h3>Does OpenWhisper work offline?</h3>
+                    <svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. After the initial one-time model download (around 140 MB for the base model), OpenWhisper works completely offline. No internet connection is needed for speech-to-text transcription.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false">
+                    <h3>How accurate is the transcription?</h3>
+                    <svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer">
+                    <p>OpenWhisper uses OpenAI's Whisper model via WhisperKit, which is one of the most accurate speech recognition models available today. The base model handles everyday dictation well, and the small model provides even higher accuracy for longer passages and multilingual content.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false">
+                    <h3>Do I need Ollama?</h3>
+                    <svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer">
+                    <p>No. Ollama is entirely optional. It provides AI-powered grammar cleanup that removes filler words and fixes punctuation. Without Ollama, OpenWhisper still transcribes perfectly &mdash; you simply get the raw Whisper output without post-processing.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-question" onclick="this.parentElement.classList.toggle('open')" aria-expanded="false">
+                    <h3>What is the difference between OpenWhisper and macOS built-in dictation?</h3>
+                    <svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="faq-answer">
+                    <p>macOS built-in dictation sends your audio to Apple's servers for processing. OpenWhisper processes everything locally on your Mac, offering stronger privacy, full offline support, multiple model choices, and optional LLM-powered grammar cleanup. It also works consistently without depending on Apple's server availability.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="footer-logo">Open<span>Whisper</span></div>
+        <div class="footer-links">
+            <a href="https://github.com/Rajvardhman05/openwhisper-app" rel="noopener" target="_blank">GitHub Repository</a>
+            <a href="https://github.com/Rajvardhman05/openwhisper-app/issues" rel="noopener" target="_blank">Report an Issue</a>
+            <a href="https://github.com/Rajvardhman05/openwhisper-app/blob/main/LICENSE" rel="noopener" target="_blank">MIT License</a>
+        </div>
+        <p class="footer-copy">
+            OpenWhisper is free and open-source software released under the MIT License.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>
