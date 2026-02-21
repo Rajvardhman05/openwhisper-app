@@ -1,0 +1,40 @@
+name: OpenWhisper
+options:
+  bundleIdPrefix: com.openwhisper
+  deploymentTarget:
+    macOS: "14.0"
+  minimumXcodeGenVersion: "2.38"
+  groupSortPosition: bottom
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit.git
+    from: "0.9.0"
+
+targets:
+  OpenWhisper:
+    type: application
+    platform: macOS
+    sources:
+      - path: OpenWhisper
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+    settings:
+      base:
+        INFOPLIST_FILE: OpenWhisper/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OpenWhisper/OpenWhisper.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.openwhisper.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_HARDENED_RUNTIME: true
+    dependencies:
+      - package: WhisperKit
+        product: WhisperKit
+    entitlements:
+      path: OpenWhisper/OpenWhisper.entitlements
