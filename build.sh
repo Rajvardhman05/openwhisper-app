@@ -25,6 +25,16 @@ if [ -d ".build/debug/PackageFrameworks" ]; then
     cp -R .build/debug/PackageFrameworks/* "$APP_DIR/Frameworks/" 2>/dev/null || true
 fi
 
+install_app() {
+    if [ "${SKIP_INSTALL:-}" != "1" ]; then
+        echo "Installing to /Applications..."
+        rm -rf /Applications/OpenWhisper.app
+        cp -R build/OpenWhisper.app /Applications/
+        echo "  Installed at /Applications/OpenWhisper.app"
+        echo "  You can enable 'Launch at Login' in the app settings."
+    fi
+}
+
 # Sign with persistent certificate (survives rebuilds — no need to re-grant Accessibility)
 CERT_NAME="OpenWhisper Developer"
 if security find-identity -v -p codesigning | grep -q "$CERT_NAME"; then
@@ -33,6 +43,7 @@ if security find-identity -v -p codesigning | grep -q "$CERT_NAME"; then
     echo ""
     echo "Done! App bundle at: build/OpenWhisper.app"
     echo "  Signed with persistent certificate — Accessibility permission is preserved."
+    install_app
 else
     echo "No persistent certificate found, falling back to ad-hoc signing..."
     codesign --force --deep --sign - "build/OpenWhisper.app"
@@ -45,5 +56,6 @@ else
     echo "  IMPORTANT: After launching, grant Accessibility permission:"
     echo "  System Settings → Privacy & Security → Accessibility → Toggle ON OpenWhisper"
     echo "  Then restart the app."
+    install_app
 fi
 echo ""

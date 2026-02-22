@@ -111,6 +111,16 @@ struct SettingsView: View {
                     .controlSize(.small)
             }
 
+            // Launch at Login
+            HStack {
+                Label("Launch at Login", systemImage: "arrow.right.circle")
+                Spacer()
+                Toggle("", isOn: $appState.launchAtLogin)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.small)
+            }
+
             Divider()
 
             // Trigger hotkey

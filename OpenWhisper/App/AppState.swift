@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import AVFoundation
 import ApplicationServices
+import ServiceManagement
 
 @Observable
 @MainActor
@@ -33,6 +34,19 @@ final class AppState {
     }
     var autoPasteEnabled: Bool {
         didSet { UserDefaults.standard.set(autoPasteEnabled, forKey: "autoPasteEnabled") }
+    }
+    var launchAtLogin: Bool {
+        didSet {
+            do {
+                if launchAtLogin {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                owLog("[OpenWhisper] Launch at login error: \(error)")
+            }
+        }
     }
 
     // MARK: - Runtime State
@@ -86,6 +100,7 @@ final class AppState {
         llmCleanupEnabled = defaults.object(forKey: "llmCleanupEnabled") as? Bool ?? true
         flowBarEnabled = defaults.object(forKey: "flowBarEnabled") as? Bool ?? true
         autoPasteEnabled = defaults.object(forKey: "autoPasteEnabled") as? Bool ?? true
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     // MARK: - Setup
