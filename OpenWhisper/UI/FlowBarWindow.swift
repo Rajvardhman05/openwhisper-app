@@ -50,7 +50,7 @@ final class FlowBarController {
 
     private func createPanel() {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 52),
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 32),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -65,11 +65,11 @@ final class FlowBarController {
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = false
 
-        // Position at bottom center of main screen
+        // Position at bottom center, just above the dock (like Wispr Flow)
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - 160
-            let y = screenFrame.minY + 80
+            let x = screenFrame.midX - 100
+            let y = screenFrame.minY + 12
             panel.setFrameOrigin(NSPoint(x: x, y: y))
             owLog("[FlowBar] Positioned at (\(x), \(y)) on screen \(screenFrame)")
         }

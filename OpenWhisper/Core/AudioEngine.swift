@@ -1,12 +1,14 @@
 import AVFoundation
 import Accelerate
+import CoreAudio
 
 final class AudioEngine: @unchecked Sendable {
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private let lock = NSLock()
     private var samples: [Float] = []
     private var inputSampleRate: Double = 48000
     private var levelCallback: ((Float) -> Void)?
+    private var deviceChangeListener: NSObjectProtocol?
 
     /// Request microphone permission (call before first recording)
     func requestPermission() async -> Bool {
@@ -25,10 +27,15 @@ final class AudioEngine: @unchecked Sendable {
         samples = []
         lock.unlock()
 
+        // Reset engine to pick up current default input device
+        engine.stop()
+        engine.reset()
+        engine = AVAudioEngine()
+
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
         inputSampleRate = format.sampleRate
-        owLog("[AudioEngine] Recording format: \(format.sampleRate)Hz, \(format.channelCount)ch")
+        owLog("[AudioEngine] Recording format: \(format.sampleRate)Hz, \(format.channelCount)ch, device: \(inputNode.auAudioUnit.deviceID)")
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             guard let self else { return }

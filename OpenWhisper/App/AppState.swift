@@ -85,7 +85,7 @@ final class AppState {
 
     var menuBarIconColor: Color {
         switch recordingState {
-        case .idle: Color(nsColor: .controlAccentColor)
+        case .idle: .gray
         case .recording: .red
         case .transcribing: .orange
         }

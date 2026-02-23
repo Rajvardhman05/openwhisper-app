@@ -4,7 +4,7 @@ struct FlowBarView: View {
     @Environment(AppState.self) var appState
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             switch appState.recordingState {
             case .idle:
                 idleContent
@@ -14,51 +14,52 @@ struct FlowBarView: View {
                 transcribingContent
             }
         }
-        .padding(.horizontal, idlePadding ? 14 : 20)
-        .padding(.vertical, idlePadding ? 8 : 12)
+        .padding(.horizontal, isIdle ? 10 : 12)
+        .padding(.vertical, isIdle ? 5 : 6)
         .background(
             ZStack {
-                RoundedRectangle(cornerRadius: 28)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 28)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(Color.black.opacity(0.35))
             }
-            .shadow(color: .black.opacity(0.3), radius: 12, y: 3)
+            .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 28))
-        .animation(.spring(duration: 0.35), value: appState.recordingState)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .opacity(appState.recordingState == .idle ? 0.45 : 1.0)
+        .animation(.spring(duration: 0.3), value: appState.recordingState)
     }
 
-    private var idlePadding: Bool {
+    private var isIdle: Bool {
         appState.recordingState == .idle
     }
 
-    // MARK: - Idle (always-visible small pill)
+    // MARK: - Idle
 
     private var idleContent: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 5) {
             Image(systemName: "mic.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(appState.modelLoaded ? tealColor : .orange)
+                .font(.system(size: 9))
+                .foregroundStyle(appState.modelLoaded ? .white.opacity(0.45) : .orange)
 
             if appState.modelLoading {
                 ProgressView()
                     .controlSize(.mini)
                     .tint(.white)
-                Text("Loading \(appState.whisperModel)...")
-                    .font(.system(size: 11, weight: .medium))
+                Text("Loading...")
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.5))
             } else if !appState.modelLoaded {
-                Text("Model not loaded")
-                    .font(.system(size: 11, weight: .medium))
+                Text("No model")
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.orange.opacity(0.7))
             } else {
-                Text("Hold Right ⌥")
-                    .font(.system(size: 11, weight: .medium))
+                Text("Right ⌥")
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.45))
             }
         }
@@ -67,17 +68,16 @@ struct FlowBarView: View {
     // MARK: - Recording
 
     private var recordingContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Circle()
                 .fill(.red)
-                .frame(width: 8, height: 8)
+                .frame(width: 5, height: 5)
                 .modifier(PulseAnimation())
 
             VoiceDots(level: appState.audioLevel)
-                .frame(height: 24)
 
             Text("Listening...")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.white.opacity(0.6))
         }
     }
@@ -85,12 +85,12 @@ struct FlowBarView: View {
     // MARK: - Transcribing
 
     private var transcribingContent: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             BouncingDots()
 
             Text("Transcribing...")
-                .font(.system(.callout, design: .default))
-                .foregroundStyle(.white.opacity(0.8))
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
         }
     }
 
