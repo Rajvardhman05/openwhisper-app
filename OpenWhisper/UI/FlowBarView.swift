@@ -50,7 +50,11 @@ struct FlowBarView: View {
                 ProgressView()
                     .controlSize(.mini)
                     .tint(.white)
-                Text("Loading...")
+                Text(appState.modelLoadProgress > 0
+                     ? (appState.modelIsDownloading
+                        ? "Downloading \(Int(appState.modelLoadProgress * 100))%"
+                        : "Switching model...")
+                     : "Loading...")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.5))
             } else if !appState.modelLoaded {

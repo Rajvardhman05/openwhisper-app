@@ -142,7 +142,11 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Downloading \(appState.whisperModel) model...")
+                    Text(appState.modelLoadProgress > 0
+                         ? (appState.modelIsDownloading
+                            ? "Downloading \(appState.whisperModel) model — \(Int(appState.modelLoadProgress * 100))%"
+                            : "Switching to \(appState.whisperModel) model...")
+                         : "Loading \(appState.whisperModel) model...")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

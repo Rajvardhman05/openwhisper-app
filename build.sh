@@ -19,6 +19,11 @@ if [ -d "$BUNDLE_SRC" ]; then
     cp -R "$BUNDLE_SRC" "$APP_DIR/Resources/"
 fi
 
+# Copy app icon and set in Info.plist
+cp "OpenWhisper/Resources/AppIcon.icns" "$APP_DIR/Resources/AppIcon.icns" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Delete :CFBundleIconFile" "$APP_DIR/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$APP_DIR/Info.plist"
+
 # Copy any framework dependencies
 if [ -d ".build/debug/PackageFrameworks" ]; then
     mkdir -p "$APP_DIR/Frameworks"

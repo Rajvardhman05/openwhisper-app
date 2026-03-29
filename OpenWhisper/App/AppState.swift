@@ -57,6 +57,7 @@ final class AppState {
     var modelLoaded: Bool = false
     var modelLoading: Bool = false
     var modelLoadProgress: Double = 0.0
+    var modelIsDownloading: Bool = false
     var lastTranscription: String = ""
     var lastError: String?
     var accessibilityGranted: Bool = false
@@ -155,7 +156,8 @@ final class AppState {
         modelLoaded = false
         modelLoading = true
         modelLoadProgress = 0
-        owLog("[OpenWhisper] Loading model: \(whisperModel)...")
+        modelIsDownloading = !(transcriber?.isModelDownloaded(name: whisperModel) ?? false)
+        owLog("[OpenWhisper] Loading model: \(whisperModel) (download needed: \(modelIsDownloading))...")
         do {
             try await transcriber?.loadModel(name: whisperModel) { [weak self] progress in
                 Task { @MainActor in
