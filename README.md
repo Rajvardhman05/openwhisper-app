@@ -37,7 +37,15 @@ No cloud. No subscription. No data collection. Just fast, accurate voice typing 
 - **Xcode Command Line Tools** — `xcode-select --install`
 - **Ollama** (optional) — for AI grammar cleanup: [ollama.com](https://ollama.com)
 
-## How to Install OpenWhisper on macOS
+## Quick Install (One Line)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Rajvardhman05/openwhisper-app/main/install.sh | bash
+```
+
+This clones the repo, builds the app, installs it to `/Applications`, and launches it. First install takes ~2 min (downloads WhisperKit dependencies). Also works to **update** an existing install to the latest version.
+
+### Manual Install
 
 ```bash
 git clone https://github.com/Rajvardhman05/openwhisper-app.git
@@ -45,8 +53,6 @@ cd openwhisper-app
 bash build.sh
 open build/OpenWhisper.app
 ```
-
-The first build downloads WhisperKit dependencies (~2 min). Subsequent builds take ~2 seconds.
 
 ### After launching
 
