@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 func owLog(_ msg: String) {
     let line = "\(Date()): \(msg)\n"
@@ -31,13 +32,26 @@ struct OpenWhisperApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         owLog("applicationDidFinishLaunching called")
         NSApplication.shared.setActivationPolicy(.accessory)
+
+        // Set delegate so notifications show even when app is in foreground
+        UNUserNotificationCenter.current().delegate = self
+
         Task { @MainActor in
             owLog("Starting setup...")
             await AppState.shared.setup()
         }
+    }
+
+    // Show notifications as banners even when the app is active/foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 }

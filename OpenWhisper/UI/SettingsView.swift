@@ -123,6 +123,11 @@ struct SettingsView: View {
 
             Divider()
 
+            // Reminders
+            remindersSection
+
+            Divider()
+
             // Trigger hotkey
             HStack {
                 Label("Trigger", systemImage: "keyboard")
@@ -238,6 +243,89 @@ struct SettingsView: View {
                 action: { openSystemSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }
             )
         }
+    }
+
+    // MARK: - Reminders Section
+
+    private var remindersSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Reminders")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !ReminderManager.shared.reminders.isEmpty {
+                    Button("Clear All") {
+                        ReminderManager.shared.cancelAll()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                }
+            }
+
+            let reminders = ReminderManager.shared.reminders
+            if reminders.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "bell.slash")
+                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 12))
+                    Text("No active reminders")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            } else {
+                ForEach(reminders) { reminder in
+                    let fired = reminder.fireDate <= Date()
+                    HStack(spacing: 8) {
+                        Image(systemName: fired ? "bell.and.waves.left.and.right" : "bell.fill")
+                            .foregroundStyle(fired ? .gray : .orange)
+                            .font(.system(size: 10))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(reminder.task)
+                                .font(.callout)
+                                .lineLimit(1)
+                                .foregroundStyle(fired ? .secondary : .primary)
+                            Text(fired ? "Fired — \(formatReminderDate(reminder.fireDate))" : formatReminderDate(reminder.fireDate))
+                                .font(.caption2)
+                                .foregroundStyle(fired ? .tertiary : .secondary)
+                        }
+                        Spacer()
+                        Button {
+                            ReminderManager.shared.cancelReminder(id: reminder.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.tertiary)
+                                .font(.system(size: 14))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 2)
+                    .opacity(fired ? 0.6 : 1.0)
+                }
+            }
+
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 10))
+                Text("Say \"Remind me to...\" to set a reminder")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.quaternary)
+        }
+    }
+
+    private func formatReminderDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "'Today at' h:mm a"
+        } else if calendar.isDateInTomorrow(date) {
+            formatter.dateFormat = "'Tomorrow at' h:mm a"
+        } else {
+            formatter.dateFormat = "MMM d 'at' h:mm a"
+        }
+        return formatter.string(from: date)
     }
 
     private func openSystemSettings(_ url: String) {

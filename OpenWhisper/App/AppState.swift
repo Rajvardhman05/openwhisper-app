@@ -3,6 +3,7 @@ import Observation
 import AVFoundation
 import ApplicationServices
 import ServiceManagement
+import UserNotifications
 
 @Observable
 @MainActor
@@ -71,6 +72,7 @@ final class AppState {
     private var textInjector: TextInjector?
     private var hotkey: GlobalHotkey?
     private var flowBarController: FlowBarController?
+    private var reminderManager: ReminderManager?
     private var recordingTimer: Timer?
     private var targetApp: NSRunningApplication?
 
@@ -149,6 +151,11 @@ final class AppState {
         // Check Ollama availability
         ollamaAvailable = await LLMCleanup.checkAvailability()
         owLog("[OpenWhisper] Ollama available: \(ollamaAvailable)")
+
+        // Setup reminders
+        reminderManager = ReminderManager.shared
+        let notifGranted = await reminderManager?.requestPermission() ?? false
+        owLog("[OpenWhisper] Notification permission: \(notifGranted)")
         owLog("[OpenWhisper] Ready!")
     }
 
@@ -246,17 +253,30 @@ final class AppState {
 
                 owLog("[OpenWhisper] Raw: \(text)")
 
-                if llmCleanupEnabled && ollamaAvailable {
-                    text = await llmCleanup?.cleanup(text: text) ?? text
-                    owLog("[OpenWhisper] Cleaned: \(text)")
-                }
+                // Check raw text for reminder intent BEFORE LLM cleanup can alter it
+                let isReminderCommand = ReminderManager.isReminder(text)
 
-                lastTranscription = text
-
-                if autoPasteEnabled {
-                    textInjector?.pasteText(text, targetApp: targetApp)
+                if isReminderCommand {
+                    owLog("[OpenWhisper] Reminder detected: \(text)")
+                    lastTranscription = text
+                    if ollamaAvailable {
+                        let _ = await reminderManager?.handleReminder(text: text)
+                    } else {
+                        owLog("[OpenWhisper] Cannot set reminder — Ollama not available")
+                    }
                 } else {
-                    textInjector?.copyToClipboard(text)
+                    if llmCleanupEnabled && ollamaAvailable {
+                        text = await llmCleanup?.cleanup(text: text) ?? text
+                        owLog("[OpenWhisper] Cleaned: \(text)")
+                    }
+
+                    lastTranscription = text
+
+                    if autoPasteEnabled {
+                        textInjector?.pasteText(text, targetApp: targetApp)
+                    } else {
+                        textInjector?.copyToClipboard(text)
+                    }
                 }
             } catch {
                 owLog("[OpenWhisper] Error: \(error)")
