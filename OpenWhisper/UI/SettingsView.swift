@@ -73,6 +73,9 @@ struct SettingsView: View {
                 .frame(width: 150)
             }
 
+            // Input device
+            inputDeviceSection
+
             Divider()
 
             // LLM Cleanup
@@ -216,6 +219,46 @@ struct SettingsView: View {
             }
             Spacer()
             StatusBadge(state: appState.recordingState)
+        }
+    }
+
+    // MARK: - Input Device Section
+
+    private var inputDeviceSection: some View {
+        @Bindable var appState = appState
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label("Input", systemImage: "mic.and.signal.meter")
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { appState.inputDeviceUID ?? "" },
+                    set: { appState.inputDeviceUID = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("System Default").tag("")
+                    ForEach(appState.availableInputDevices) { device in
+                        Text(device.isBluetooth ? "🔵 \(device.name)" : device.name)
+                            .tag(device.uid)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 150)
+            }
+
+            if appState.resolvedInputIsBluetooth {
+                HStack(alignment: .top, spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                    Text("Bluetooth headsets drop into low-quality call mode while dictating, which makes music sound distorted. Pick the built-in mic for best audio.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 22)
+            }
+        }
+        .onAppear {
+            appState.refreshInputDevices()
         }
     }
 

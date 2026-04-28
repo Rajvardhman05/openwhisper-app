@@ -2,13 +2,19 @@ import AVFoundation
 import Accelerate
 import CoreAudio
 
+struct AudioInputDevice: Identifiable, Hashable, Sendable {
+    let id: AudioDeviceID
+    let uid: String
+    let name: String
+    let isBluetooth: Bool
+}
+
 final class AudioEngine: @unchecked Sendable {
     private var engine = AVAudioEngine()
     private let lock = NSLock()
     private var samples: [Float] = []
     private var inputSampleRate: Double = 48000
     private var levelCallback: ((Float) -> Void)?
-    private var deviceChangeListener: NSObjectProtocol?
 
     /// Request microphone permission (call before first recording)
     func requestPermission() async -> Bool {
@@ -21,33 +27,43 @@ final class AudioEngine: @unchecked Sendable {
         return false
     }
 
-    func startRecording(levelCallback: @escaping (Float) -> Void) {
+    /// Start recording. If `deviceUID` is non-nil, route AUHAL to that input device;
+    /// otherwise the system default input is used.
+    func startRecording(deviceUID: String?, levelCallback: @escaping (Float) -> Void) {
         self.levelCallback = levelCallback
         lock.lock()
         samples = []
         lock.unlock()
 
-        // Reset engine to pick up current default input device
-        engine.stop()
-        engine.reset()
+        // Always start from a fresh engine so any prior HAL claim is fully released
         engine = AVAudioEngine()
 
         let inputNode = engine.inputNode
+
+        if let uid = deviceUID, let deviceID = Self.audioDeviceID(forUID: uid) {
+            do {
+                try inputNode.auAudioUnit.setDeviceID(deviceID)
+                owLog("[AudioEngine] Using input device UID=\(uid) id=\(deviceID)")
+            } catch {
+                owLog("[AudioEngine] Failed to set input device \(uid): \(error). Falling back to default.")
+            }
+        } else {
+            owLog("[AudioEngine] Using system default input")
+        }
+
         let format = inputNode.outputFormat(forBus: 0)
         inputSampleRate = format.sampleRate
-        owLog("[AudioEngine] Recording format: \(format.sampleRate)Hz, \(format.channelCount)ch, device: \(inputNode.auAudioUnit.deviceID)")
+        owLog("[AudioEngine] Recording format: \(format.sampleRate)Hz, \(format.channelCount)ch")
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             guard let self else { return }
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
 
-            // Calculate RMS level
             var rms: Float = 0
             vDSP_rmsqv(channelData, 1, &rms, vDSP_Length(frameLength))
-            levelCallback(rms)
+            self.levelCallback?(rms)
 
-            // Accumulate mono samples (channel 0)
             let channelSamples = Array(UnsafeBufferPointer(start: channelData, count: frameLength))
             self.lock.lock()
             self.samples.append(contentsOf: channelSamples)
@@ -65,6 +81,11 @@ final class AudioEngine: @unchecked Sendable {
     func stopRecording() -> [Float]? {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        // Drop the AUAudioUnit and its HAL device claim now, not lazily on the next start.
+        // This lets a Bluetooth headset return to A2DP immediately instead of lingering in HFP/SCO.
+        engine.reset()
+        engine = AVAudioEngine()
+        levelCallback = nil
 
         lock.lock()
         let captured = samples
@@ -72,8 +93,6 @@ final class AudioEngine: @unchecked Sendable {
         lock.unlock()
 
         guard !captured.isEmpty else { return nil }
-
-        // Resample to 16kHz mono for WhisperKit
         return resampleTo16kHz(captured, fromRate: inputSampleRate)
     }
 
@@ -82,7 +101,6 @@ final class AudioEngine: @unchecked Sendable {
     private func resampleTo16kHz(_ input: [Float], fromRate: Double) -> [Float]? {
         let targetRate: Double = 16000
 
-        // Already at target rate
         if abs(fromRate - targetRate) < 1.0 {
             return input
         }
@@ -103,7 +121,6 @@ final class AudioEngine: @unchecked Sendable {
             return nil
         }
 
-        // Create input buffer
         let inputFrameCount = AVAudioFrameCount(input.count)
         guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrameCount) else {
             return nil
@@ -115,14 +132,12 @@ final class AudioEngine: @unchecked Sendable {
             }
         }
 
-        // Create output buffer
         let ratio = targetRate / fromRate
         let outputFrameCount = AVAudioFrameCount(Double(input.count) * ratio) + 100
         guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCount) else {
             return nil
         }
 
-        // Convert
         var consumed = false
         var error: NSError?
         converter.convert(to: outputBuffer, error: &error) { _, outStatus in
@@ -142,5 +157,103 @@ final class AudioEngine: @unchecked Sendable {
         }
 
         return Array(UnsafeBufferPointer(start: channelData, count: Int(outputBuffer.frameLength)))
+    }
+
+    // MARK: - Device enumeration
+
+    /// All system input devices (those exposing at least one input stream).
+    static func availableInputDevices() -> [AudioInputDevice] {
+        return allAudioDeviceIDs().compactMap { id in
+            guard hasInputStream(deviceID: id) else { return nil }
+            guard let uid = stringProperty(deviceID: id, selector: kAudioDevicePropertyDeviceUID) else { return nil }
+            let name = stringProperty(deviceID: id, selector: kAudioDevicePropertyDeviceNameCFString) ?? "Unknown"
+            return AudioInputDevice(id: id, uid: uid, name: name, isBluetooth: isBluetoothTransport(deviceID: id))
+        }
+    }
+
+    /// True when the system's current default input is a Bluetooth device.
+    static func systemDefaultInputIsBluetooth() -> Bool {
+        guard let id = defaultInputDeviceID() else { return false }
+        return isBluetoothTransport(deviceID: id)
+    }
+
+    /// Look up an AudioDeviceID by its persistent UID.
+    static func audioDeviceID(forUID uid: String) -> AudioDeviceID? {
+        return availableInputDevices().first(where: { $0.uid == uid })?.id
+    }
+
+    // MARK: - Core Audio property helpers
+
+    private static func allAudioDeviceIDs() -> [AudioDeviceID] {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size
+        ) == noErr, size > 0 else { return [] }
+        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var ids = [AudioDeviceID](repeating: 0, count: count)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids
+        ) == noErr else { return [] }
+        return ids
+    }
+
+    private static func defaultInputDeviceID() -> AudioDeviceID? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var id: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id
+        ) == noErr else { return nil }
+        return id == 0 ? nil : id
+    }
+
+    private static func hasInputStream(deviceID: AudioDeviceID) -> Bool {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(deviceID, &addr, 0, nil, &size) == noErr else { return false }
+        return size > 0
+    }
+
+    private static func stringProperty(deviceID: AudioDeviceID, selector: AudioObjectPropertySelector) -> String? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var cfStr: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<CFString?>.size)
+        let status = withUnsafeMutablePointer(to: &cfStr) { ptr in
+            AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, ptr)
+        }
+        guard status == noErr, let value = cfStr?.takeRetainedValue() else { return nil }
+        return value as String
+    }
+
+    private static func isBluetoothTransport(deviceID: AudioDeviceID) -> Bool {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transport: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &transport) == noErr else {
+            return false
+        }
+        return transport == kAudioDeviceTransportTypeBluetooth
+            || transport == kAudioDeviceTransportTypeBluetoothLE
     }
 }

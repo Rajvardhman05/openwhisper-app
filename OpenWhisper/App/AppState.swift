@@ -49,8 +49,21 @@ final class AppState {
             }
         }
     }
+    /// Persistent UID of the chosen input device. `nil` means "follow system default".
+    var inputDeviceUID: String? {
+        didSet {
+            if let uid = inputDeviceUID {
+                UserDefaults.standard.set(uid, forKey: "inputDeviceUID")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "inputDeviceUID")
+            }
+        }
+    }
 
     // MARK: - Runtime State
+
+    var availableInputDevices: [AudioInputDevice] = []
+    var systemDefaultInputIsBluetooth: Bool = false
 
     var audioLevel: Float = 0.0
     var recordingDuration: TimeInterval = 0.0
@@ -104,6 +117,7 @@ final class AppState {
         flowBarEnabled = defaults.object(forKey: "flowBarEnabled") as? Bool ?? true
         autoPasteEnabled = defaults.object(forKey: "autoPasteEnabled") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled
+        inputDeviceUID = defaults.string(forKey: "inputDeviceUID")
     }
 
     // MARK: - Setup
@@ -126,6 +140,10 @@ final class AppState {
         // Request mic permission
         microphoneGranted = await audioEngine?.requestPermission() ?? false
         owLog("[OpenWhisper] Microphone permission: \(microphoneGranted)")
+
+        // Enumerate input devices for the picker + BT detection
+        refreshInputDevices()
+        owLog("[OpenWhisper] Input devices: \(availableInputDevices.count), default-is-BT: \(systemDefaultInputIsBluetooth)")
 
         // Check accessibility
         accessibilityGranted = GlobalHotkey.checkAccessibility(prompt: true)
@@ -200,7 +218,7 @@ final class AppState {
         audioLevel = 0
         lastError = nil
 
-        audioEngine?.startRecording { [weak self] level in
+        audioEngine?.startRecording(deviceUID: inputDeviceUID) { [weak self] level in
             Task { @MainActor in
                 self?.audioLevel = level
             }
@@ -293,6 +311,24 @@ final class AppState {
         accessibilityGranted = GlobalHotkey.checkAccessibility(prompt: false)
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
         microphoneGranted = (status == .authorized)
+    }
+
+    func refreshInputDevices() {
+        availableInputDevices = AudioEngine.availableInputDevices()
+        systemDefaultInputIsBluetooth = AudioEngine.systemDefaultInputIsBluetooth()
+        // If the previously selected device is no longer present, fall back to system default
+        if let uid = inputDeviceUID, !availableInputDevices.contains(where: { $0.uid == uid }) {
+            inputDeviceUID = nil
+        }
+    }
+
+    /// Returns true when dictation will route through a Bluetooth device — i.e. either
+    /// the user explicitly picked one, or "System Default" is currently a BT device.
+    var resolvedInputIsBluetooth: Bool {
+        if let uid = inputDeviceUID {
+            return availableInputDevices.first(where: { $0.uid == uid })?.isBluetooth ?? false
+        }
+        return systemDefaultInputIsBluetooth
     }
 
     func refreshOllamaStatus() async {
