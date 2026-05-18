@@ -11,6 +11,11 @@ APP_DIR="build/OpenWhisper.app/Contents"
 EXEC_SRC=".build/debug/OpenWhisper"
 BUNDLE_SRC=".build/debug/OpenWhisper_OpenWhisper.bundle"
 
+# Create .app bundle skeleton
+rm -rf "build/OpenWhisper.app"
+mkdir -p "$APP_DIR/MacOS" "$APP_DIR/Resources"
+cp "OpenWhisper/Info.plist" "$APP_DIR/Info.plist"
+
 # Copy executable
 cp "$EXEC_SRC" "$APP_DIR/MacOS/OpenWhisper"
 
