@@ -11,6 +11,7 @@ No cloud. No subscription. No data collection. Just fast, accurate voice typing 
 - **100% Local & Private** — All speech recognition runs on-device. No audio ever leaves your Mac.
 - **Offline Voice-to-Text** — Works without internet. Transcribe speech to text anywhere.
 - **Hold-to-Talk** — Hold Right ⌥ (Option), speak, release. Text appears at your cursor.
+- **Hands-Free Mode** — While holding Right ⌥, tap Space to lock recording on. Talk as long as you want, then tap Space again to stop.
 - **Works in Any App** — VS Code, Terminal, Chrome, Slack, Notes, Pages — anywhere you can type.
 - **AI Grammar Cleanup** — Optional local LLM removes "um", "uh", fixes punctuation (via Ollama).
 - **Multiple Whisper Models** — Choose tiny (39 MB), base (140 MB), small (460 MB) based on your needs.
@@ -64,17 +65,26 @@ OpenWhisper lives in your **menu bar** (no dock icon). Look for the teal microph
 
 ## How to Use Voice-to-Text on Mac with OpenWhisper
 
-**Hold Right ⌥ (Option)** to start recording. Speak. Release to transcribe and paste.
+OpenWhisper has two recording modes — pick whichever fits the moment.
 
-That's it.
+### Hold-to-Talk (quick dictation)
+
+**Hold Right ⌥ (Option)**, speak, release. Text appears at your cursor.
+
+### Hands-Free Mode (long dictation)
+
+**Hold Right ⌥, then tap Space** while still holding — recording locks on. Release Option freely and keep talking. **Tap Space again** to stop, transcribe, and paste.
+
+Use hands-free when you don't want to keep a finger on Option — long emails, blog drafts, anything multi-sentence.
 
 ### How it works
 
 1. **Hold Right ⌥** → recording starts, Flow Bar shows "Listening..." with animated dots
-2. **Speak** → audio captured locally at 16 kHz mono
-3. **Release** → audio transcribed by on-device Whisper model
-4. **Cleanup** → text cleaned up by local LLM (if enabled)
-5. **Paste** → text automatically pasted at your cursor (or copied to clipboard)
+2. **(Optional) Tap Space** while still holding Option → recording locks into hands-free; release Option whenever
+3. **Speak** → audio captured locally at 16 kHz mono
+4. **Release Option** (hold mode) or **tap Space** (hands-free) → audio transcribed by on-device Whisper model
+5. **Cleanup** → text cleaned up by local LLM (if enabled)
+6. **Paste** → text automatically pasted at your cursor (or copied to clipboard)
 
 Works in any app — VS Code, Terminal, Chrome, Slack, Notes, Pages, Word, and more.
 
@@ -142,7 +152,7 @@ OpenWhisper.app (menu bar)
 ├── WhisperTranscriber — WhisperKit (CoreML + Apple Neural Engine)
 ├── LLMCleanup         — Ollama HTTP API (localhost:11434)
 ├── TextInjector       — NSPasteboard + CGEvent Cmd+V
-├── GlobalHotkey       — Right ⌥ via NSEvent monitors
+├── GlobalHotkey       — Right ⌥ via NSEvent + Space lock via CGEventTap
 └── UI
     ├── MenuBar + Settings popover
     └── FlowBar (floating NSPanel with voice-reactive animation)
