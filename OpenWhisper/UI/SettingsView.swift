@@ -244,6 +244,14 @@ struct SettingsView: View {
                 .frame(width: 150)
             }
 
+            if appState.inputDeviceUID == nil {
+                Toggle("Use Mac mic when default is Bluetooth", isOn: $appState.avoidBluetoothMic)
+                    .font(.caption)
+                    .toggleStyle(.checkbox)
+                    .padding(.leading, 22)
+                    .help("Keeps your headset in hi-fi mode so music and calls don't go quiet while you dictate")
+            }
+
             if appState.resolvedInputIsBluetooth {
                 HStack(alignment: .top, spacing: 4) {
                     Image(systemName: "info.circle")

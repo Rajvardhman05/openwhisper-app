@@ -2,16 +2,17 @@
 
 Keeps OpenWhisper dictation working when Bluetooth earbuds are connected.
 
+> **No longer needed.** OpenWhisper now records from the Mac's built-in mic on
+> its own whenever the system default input is Bluetooth (Settings → "Use Mac
+> mic when default is Bluetooth", on by default), and picking a named input
+> device works. Kept for reference.
+
 ## The problem
 
-**OpenWhisper's in-app input-device picker only works on "System Default".**
-Selecting a device by name (e.g. "MacBook Pro Microphone") does not capture —
-in testing, only the **System Default** option produces working dictation. So
-the app effectively always follows the **macOS system default input device**,
-and the only reliable way to choose its mic is to control the OS default.
-
-> **Set OpenWhisper's input to "System Default"** and manage the OS default
-> input externally (that's what this agent does).
+Older builds recorded with AVAudioEngine, which could not pin a non-default mic:
+it reported the default device's stale format and `installTap` threw a
+sample-rate mismatch, so only **System Default** worked and the OS default
+input had to be managed externally (that's what this agent does).
 
 When Bluetooth
 earbuds (e.g. OnePlus Nord Buds) are the default mic, macOS runs them in **HFP

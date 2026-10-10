@@ -60,6 +60,12 @@ final class AppState {
         }
     }
 
+    /// When "System Default" resolves to a Bluetooth headset, record from the built-in mic instead,
+    /// so the headset stays in hi-fi (A2DP) mode and playback isn't crushed by call mode.
+    var avoidBluetoothMic: Bool = true {
+        didSet { UserDefaults.standard.set(avoidBluetoothMic, forKey: "avoidBluetoothMic") }
+    }
+
     // MARK: - Runtime State
 
     var availableInputDevices: [AudioInputDevice] = []
@@ -118,6 +124,7 @@ final class AppState {
         autoPasteEnabled = defaults.object(forKey: "autoPasteEnabled") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled
         inputDeviceUID = defaults.string(forKey: "inputDeviceUID")
+        avoidBluetoothMic = defaults.object(forKey: "avoidBluetoothMic") as? Bool ?? true
     }
 
     // MARK: - Setup
@@ -218,7 +225,7 @@ final class AppState {
         audioLevel = 0
         lastError = nil
 
-        audioEngine?.startRecording(deviceUID: inputDeviceUID) { [weak self] level in
+        audioEngine?.startRecording(deviceUID: effectiveInputDeviceUID()) { [weak self] level in
             Task { @MainActor in
                 self?.audioLevel = level
             }
@@ -322,13 +329,23 @@ final class AppState {
         }
     }
 
+    /// The device to record from right now. An explicit pick always wins; otherwise follow the
+    /// system default, unless that's Bluetooth and `avoidBluetoothMic` is on.
+    private func effectiveInputDeviceUID() -> String? {
+        if let uid = inputDeviceUID { return uid }
+        guard avoidBluetoothMic, AudioEngine.systemDefaultInputIsBluetooth() else { return nil }
+        let builtIn = AudioEngine.builtInInputUID()
+        owLog("[OpenWhisper] System default input is Bluetooth — using built-in mic (\(builtIn ?? "none found"))")
+        return builtIn
+    }
+
     /// Returns true when dictation will route through a Bluetooth device — i.e. either
     /// the user explicitly picked one, or "System Default" is currently a BT device.
     var resolvedInputIsBluetooth: Bool {
         if let uid = inputDeviceUID {
             return availableInputDevices.first(where: { $0.uid == uid })?.isBluetooth ?? false
         }
-        return systemDefaultInputIsBluetooth
+        return systemDefaultInputIsBluetooth && !avoidBluetoothMic
     }
 
     func refreshOllamaStatus() async {

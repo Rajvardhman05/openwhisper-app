@@ -7,10 +7,15 @@ struct AudioInputDevice: Identifiable, Hashable, Sendable {
     let uid: String
     let name: String
     let isBluetooth: Bool
+    let isBuiltIn: Bool
 }
 
-final class AudioEngine: @unchecked Sendable {
-    private var engine = AVAudioEngine()
+final class AudioEngine: NSObject, @unchecked Sendable, AVCaptureAudioDataOutputSampleBufferDelegate {
+    // AVCaptureSession, not AVAudioEngine: AVAudioEngine can't reliably pin a non-default mic
+    // (it reports the default device's stale format and installTap throws a sampleRate mismatch),
+    // which made "MacBook mic while Bluetooth headset is default" crash the app.
+    private var session: AVCaptureSession?
+    private let captureQueue = DispatchQueue(label: "com.openwhisper.capture")
     private let lock = NSLock()
     private var samples: [Float] = []
     private var inputSampleRate: Double = 48000
@@ -27,7 +32,7 @@ final class AudioEngine: @unchecked Sendable {
         return false
     }
 
-    /// Start recording. If `deviceUID` is non-nil, route AUHAL to that input device;
+    /// Start recording. If `deviceUID` is non-nil, capture from that input device;
     /// otherwise the system default input is used.
     func startRecording(deviceUID: String?, levelCallback: @escaping (Float) -> Void) {
         self.levelCallback = levelCallback
@@ -35,65 +40,105 @@ final class AudioEngine: @unchecked Sendable {
         samples = []
         lock.unlock()
 
-        // Always start from a fresh engine so any prior HAL claim is fully released
-        engine = AVAudioEngine()
-
-        let inputNode = engine.inputNode
-
-        if let uid = deviceUID, let deviceID = Self.audioDeviceID(forUID: uid) {
-            do {
-                try inputNode.auAudioUnit.setDeviceID(deviceID)
-                owLog("[AudioEngine] Using input device UID=\(uid) id=\(deviceID)")
-            } catch {
-                owLog("[AudioEngine] Failed to set input device \(uid): \(error). Falling back to default.")
-            }
-        } else {
-            owLog("[AudioEngine] Using system default input")
+        var device: AVCaptureDevice?
+        if let uid = deviceUID {
+            device = AVCaptureDevice(uniqueID: uid)
+            if device == nil { owLog("[AudioEngine] Input device \(uid) not found. Falling back to default.") }
         }
-
-        let format = inputNode.outputFormat(forBus: 0)
-        inputSampleRate = format.sampleRate
-        owLog("[AudioEngine] Recording format: \(format.sampleRate)Hz, \(format.channelCount)ch")
-
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            guard let self else { return }
-            guard let channelData = buffer.floatChannelData?[0] else { return }
-            let frameLength = Int(buffer.frameLength)
-
-            var rms: Float = 0
-            vDSP_rmsqv(channelData, 1, &rms, vDSP_Length(frameLength))
-            self.levelCallback?(rms)
-
-            let channelSamples = Array(UnsafeBufferPointer(start: channelData, count: frameLength))
-            self.lock.lock()
-            self.samples.append(contentsOf: channelSamples)
-            self.lock.unlock()
+        if device == nil { device = AVCaptureDevice.default(for: .audio) }
+        guard let device else {
+            owLog("[AudioEngine] No input device available")
+            return
         }
+        owLog("[AudioEngine] Using input device \(device.localizedName) UID=\(device.uniqueID)")
 
+        let session = AVCaptureSession()
         do {
-            try engine.start()
-            owLog("[AudioEngine] Engine started")
+            let input = try AVCaptureDeviceInput(device: device)
+            guard session.canAddInput(input) else {
+                owLog("[AudioEngine] Cannot add input \(device.localizedName)")
+                return
+            }
+            session.addInput(input)
         } catch {
-            owLog("[AudioEngine] Failed to start: \(error)")
+            owLog("[AudioEngine] Failed to open \(device.localizedName): \(error)")
+            return
+        }
+
+        let output = AVCaptureAudioDataOutput()
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+            AVNumberOfChannelsKey: 1,
+        ]
+        output.setSampleBufferDelegate(self, queue: captureQueue)
+        guard session.canAddOutput(output) else {
+            owLog("[AudioEngine] Cannot add audio output")
+            return
+        }
+        session.addOutput(output)
+
+        self.session = session
+        // startRunning blocks while the device opens; keep it off the main thread.
+        captureQueue.async {
+            session.startRunning()
+            owLog("[AudioEngine] Capture started")
         }
     }
 
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let desc = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(desc)?.pointee else { return }
+
+        var blockBuffer: CMBlockBuffer?
+        var bufferList = AudioBufferList()
+        let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: nil,
+            bufferListOut: &bufferList,
+            bufferListSize: MemoryLayout<AudioBufferList>.size,
+            blockBufferAllocator: nil,
+            blockBufferMemoryAllocator: nil,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+        guard status == noErr, let data = bufferList.mBuffers.mData else { return }
+        let frameLength = Int(bufferList.mBuffers.mDataByteSize) / MemoryLayout<Float>.size
+        guard frameLength > 0 else { return }
+        let channelData = data.assumingMemoryBound(to: Float.self)
+
+        var rms: Float = 0
+        vDSP_rmsqv(channelData, 1, &rms, vDSP_Length(frameLength))
+        levelCallback?(rms)
+
+        let channelSamples = Array(UnsafeBufferPointer(start: channelData, count: frameLength))
+        lock.lock()
+        inputSampleRate = asbd.mSampleRate
+        samples.append(contentsOf: channelSamples)
+        lock.unlock()
+    }
+
     func stopRecording() -> [Float]? {
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
-        // Drop the AUAudioUnit and its HAL device claim now, not lazily on the next start.
-        // This lets a Bluetooth headset return to A2DP immediately instead of lingering in HFP/SCO.
-        engine.reset()
-        engine = AVAudioEngine()
+        // Stop on the capture queue so every in-flight buffer is delivered before we read samples.
+        // Releasing the session drops the device claim, so a Bluetooth headset returns to A2DP immediately.
+        if let session {
+            captureQueue.sync { session.stopRunning() }
+        }
+        session = nil
         levelCallback = nil
 
         lock.lock()
         let captured = samples
+        let rate = inputSampleRate
         samples = []
         lock.unlock()
 
+        owLog("[AudioEngine] Captured \(captured.count) samples at \(rate)Hz")
         guard !captured.isEmpty else { return nil }
-        return resampleTo16kHz(captured, fromRate: inputSampleRate)
+        return resampleTo16kHz(captured, fromRate: rate)
     }
 
     // MARK: - Resampling
@@ -167,7 +212,12 @@ final class AudioEngine: @unchecked Sendable {
             guard hasInputStream(deviceID: id) else { return nil }
             guard let uid = stringProperty(deviceID: id, selector: kAudioDevicePropertyDeviceUID) else { return nil }
             let name = stringProperty(deviceID: id, selector: kAudioDevicePropertyDeviceNameCFString) ?? "Unknown"
-            return AudioInputDevice(id: id, uid: uid, name: name, isBluetooth: isBluetoothTransport(deviceID: id))
+            let transport = transportType(deviceID: id)
+            return AudioInputDevice(
+                id: id, uid: uid, name: name,
+                isBluetooth: transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE,
+                isBuiltIn: transport == kAudioDeviceTransportTypeBuiltIn
+            )
         }
     }
 
@@ -175,6 +225,11 @@ final class AudioEngine: @unchecked Sendable {
     static func systemDefaultInputIsBluetooth() -> Bool {
         guard let id = defaultInputDeviceID() else { return false }
         return isBluetoothTransport(deviceID: id)
+    }
+
+    /// UID of the Mac's own microphone (transport type, not name, so a Continuity iPhone never matches).
+    static func builtInInputUID() -> String? {
+        return availableInputDevices().first(where: { $0.isBuiltIn })?.uid
     }
 
     /// Look up an AudioDeviceID by its persistent UID.
@@ -243,6 +298,12 @@ final class AudioEngine: @unchecked Sendable {
     }
 
     private static func isBluetoothTransport(deviceID: AudioDeviceID) -> Bool {
+        let transport = transportType(deviceID: deviceID)
+        return transport == kAudioDeviceTransportTypeBluetooth
+            || transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+
+    private static func transportType(deviceID: AudioDeviceID) -> UInt32 {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyTransportType,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -251,9 +312,8 @@ final class AudioEngine: @unchecked Sendable {
         var transport: UInt32 = 0
         var size = UInt32(MemoryLayout<UInt32>.size)
         guard AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &transport) == noErr else {
-            return false
+            return 0
         }
-        return transport == kAudioDeviceTransportTypeBluetooth
-            || transport == kAudioDeviceTransportTypeBluetoothLE
+        return transport
     }
 }
