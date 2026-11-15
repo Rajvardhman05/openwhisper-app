@@ -220,7 +220,7 @@ bash build.sh
 open build/OpenWhisper.app
 
 # Logs
-tail -f /tmp/openwhisper.log
+tail -f ~/Library/Logs/OpenWhisper/openwhisper.log
 ```
 
 Built with Swift 5.10, SwiftUI, Swift Package Manager. No Xcode project required — builds entirely from the command line.

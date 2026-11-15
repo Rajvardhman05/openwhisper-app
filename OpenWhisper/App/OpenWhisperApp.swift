@@ -1,15 +1,24 @@
 import SwiftUI
 import UserNotifications
 
+/// Log file holds dictated text, so it lives in the user's Library (not world-readable /tmp), owner-only (0600).
+let owLogPath: String = {
+    let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+        .appendingPathComponent("Logs/OpenWhisper")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                             attributes: [.posixPermissions: 0o700])
+    return dir.appendingPathComponent("openwhisper.log").path
+}()
+
 func owLog(_ msg: String) {
     let line = "\(Date()): \(msg)\n"
-    let path = "/tmp/openwhisper.log"
-    if let fh = FileHandle(forWritingAtPath: path) {
+    if let fh = FileHandle(forWritingAtPath: owLogPath) {
         fh.seekToEndOfFile()
         if let data = line.data(using: .utf8) { fh.write(data) }
         fh.closeFile()
     } else {
-        FileManager.default.createFile(atPath: path, contents: line.data(using: .utf8))
+        FileManager.default.createFile(atPath: owLogPath, contents: line.data(using: .utf8),
+                                       attributes: [.posixPermissions: 0o600])
     }
 }
 
