@@ -55,7 +55,7 @@ final class LLMCleanup: Sendable {
     }
 
     /// Load the cleanup model into memory and pin it there (keep_alive -1), so the first dictation isn't slow.
-    static func warmUp(model: String) async {
+    static func warmUp(model: String, quiet: Bool = false) async {
         guard let url = URL(string: "http://localhost:11434/api/generate") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -68,7 +68,14 @@ final class LLMCleanup: Sendable {
         let body: [String: Any] = ["model": model, "prompt": prompt, "stream": false, "keep_alive": -1,
                                    "options": ["temperature": 0, "num_predict": 8]]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        let started = Date()
         let ok = ((try? await URLSession.shared.data(for: request))?.1 as? HTTPURLResponse)?.statusCode == 200
+        let took = Date().timeIntervalSince(started)
+        // Keep-warm pings only log when the model had actually fallen out of memory (slow response).
+        if quiet {
+            if !ok || took > 1.5 { owLog(String(format: "[LLMCleanup] Keep-warm: %@ in %.1fs (model had been paged out)", ok ? "reloaded" : "failed", took)) }
+            return
+        }
         owLog("[LLMCleanup] Warm-up \(model): \(ok ? "done, pinned in memory" : "failed (is it installed in Ollama?)")")
     }
 
@@ -96,7 +103,15 @@ final class LLMCleanup: Sendable {
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let sent = Date()
             let (data, response) = try await URLSession.shared.data(for: request)
+            if let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // Ollama's own breakdown vs wall clock: tells model time apart from waiting/throttling.
+                let sec = { (k: String) in ((j[k] as? Double) ?? 0) / 1e9 }
+                owLog(String(format: "[LLMCleanup] %.2fs wall | ollama total %.2fs = load %.2f + prompt %.2f + %d tok %.2f",
+                             Date().timeIntervalSince(sent), sec("total_duration"), sec("load_duration"),
+                             sec("prompt_eval_duration"), (j["eval_count"] as? Int) ?? 0, sec("eval_duration")))
+            }
 
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { return text }
 

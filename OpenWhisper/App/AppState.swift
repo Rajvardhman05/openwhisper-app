@@ -17,7 +17,37 @@ final class AppState {
         case idle, recording, transcribing
     }
 
-    var recordingState: RecordingState = .idle
+    var recordingState: RecordingState = .idle {
+        didSet {
+            // OpenWhisper is a background menu-bar app, so macOS App Nap throttles it, which made
+            // cleanup take 5–8s instead of 0.4s. Mark dictation as latency-critical while it runs.
+            if recordingState == .idle {
+                if let activity { ProcessInfo.processInfo.endActivity(activity) }
+                activity = nil
+            } else if activity == nil {
+                activity = ProcessInfo.processInfo.beginActivity(
+                    options: [.userInitiated, .latencyCritical, .idleSystemSleepDisabled],
+                    reason: "Dictation in progress")
+            }
+        }
+    }
+    private var activity: NSObjectProtocol?
+    private var keepWarmTimer: Timer?
+
+    /// The Mac is often short on RAM (heavy swap), and macOS pushes the idle cleanup model out of memory;
+    /// the next dictation then waits ~5s while it's read back from disk. A tiny request every 2 minutes
+    /// keeps its pages in use so they stay in RAM. Skipped while a dictation is running.
+    private func startKeepWarm() {
+        keepWarmTimer?.invalidate()
+        keepWarmTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.recordingState == .idle, self.ollamaAvailable,
+                      self.llmCleanupEnabled else { return }
+                let model = self.cleanupModel
+                Task.detached { await LLMCleanup.warmUp(model: model, quiet: true) }
+            }
+        }
+    }
 
     // MARK: - Settings (persisted via UserDefaults)
 
@@ -211,6 +241,7 @@ final class AppState {
         ollamaAvailable = await LLMCleanup.checkAvailability()
         owLog("[OpenWhisper] Ollama available: \(ollamaAvailable)")
         if ollamaAvailable { let m = cleanupModel; Task { await LLMCleanup.warmUp(model: m) } }
+        startKeepWarm()
 
         // Setup reminders
         reminderManager = ReminderManager.shared
