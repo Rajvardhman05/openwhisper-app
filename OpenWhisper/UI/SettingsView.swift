@@ -21,10 +21,11 @@ struct SettingsView: View {
                 Label("Model", systemImage: "cpu")
                 Spacer()
                 Picker("", selection: $appState.whisperModel) {
-                    Text("Tiny (39 MB)").tag("tiny")
-                    Text("Base (140 MB)").tag("base")
-                    Text("Small (460 MB)").tag("small")
-                    Text("Small EN").tag("small.en")
+                    Text("Parakeet (fastest)").tag("parakeet")
+                    Text("Whisper Tiny (39 MB)").tag("tiny")
+                    Text("Whisper Base (140 MB)").tag("base")
+                    Text("Whisper Small (460 MB)").tag("small")
+                    Text("Whisper Small EN").tag("small.en")
                 }
                 .labelsHidden()
                 .frame(width: 150)
@@ -94,6 +95,19 @@ struct SettingsView: View {
                     .controlSize(.small)
             }
 
+            if appState.llmCleanupEnabled {
+                HStack {
+                    Label("Cleanup model", systemImage: "wand.and.stars")
+                    Spacer()
+                    Picker("", selection: $appState.cleanupModel) {
+                        Text("s1-mini (fast, faithful)").tag(LLMCleanup.s1Mini)
+                        Text("Qwen 2.5 3B").tag(LLMCleanup.qwen)
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+            }
+
             // Auto-paste
             HStack {
                 Label("Auto-paste", systemImage: "doc.on.clipboard")
@@ -122,6 +136,20 @@ struct SettingsView: View {
                     .toggleStyle(.switch)
                     .labelsHidden()
                     .controlSize(.small)
+            }
+
+            // Custom words
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Custom words", systemImage: "character.book.closed")
+                TextField("Slavia, Hetzner, Cloudflare…", text: $appState.customVocabulary, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .lineLimit(1...3)
+            }
+
+            if !appState.recentDictations.isEmpty {
+                Divider()
+                recentSection
             }
 
             Divider()
@@ -222,6 +250,45 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Recent Dictations
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label("Recent", systemImage: "clock.arrow.circlepath")
+                Spacer()
+                Button("Clear") { appState.clearHistory() }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(appState.recentDictations.prefix(3)) { entry in
+                HStack(spacing: 6) {
+                    Text(entry.failed ? "Transcription failed" : entry.text)
+                        .font(.caption)
+                        .foregroundStyle(entry.failed ? .orange : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !entry.failed {
+                        Button { appState.copy(entry) } label: { Image(systemName: "doc.on.doc") }
+                            .buttonStyle(.plain)
+                    }
+                    if appState.canRetry(entry) {
+                        if appState.retryingEntryID == entry.id {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Button { appState.retry(entry) } label: { Image(systemName: "arrow.clockwise") }
+                                .buttonStyle(.plain)
+                                .disabled(appState.retryingEntryID != nil)
+                        }
+                    }
+                }
+                .padding(.leading, 22)
+            }
+        }
+    }
+
     // MARK: - Input Device Section
 
     private var inputDeviceSection: some View {
@@ -249,7 +316,6 @@ struct SettingsView: View {
                     .font(.caption)
                     .toggleStyle(.checkbox)
                     .padding(.leading, 22)
-                    .help("Keeps your headset in hi-fi mode so music and calls don't go quiet while you dictate")
             }
 
             if appState.resolvedInputIsBluetooth {

@@ -20,6 +20,13 @@ final class AudioEngine: NSObject, @unchecked Sendable, AVCaptureAudioDataOutput
     private var samples: [Float] = []
     private var inputSampleRate: Double = 48000
     private var levelCallback: ((Float) -> Void)?
+    private var peakLevel: Float = 0
+
+    /// Loudest buffer RMS of the last recording. ~0 means the mic delivered silence (muted or dead).
+    var lastPeakLevel: Float {
+        lock.lock(); defer { lock.unlock() }
+        return peakLevel
+    }
 
     /// Request microphone permission (call before first recording)
     func requestPermission() async -> Bool {
@@ -38,6 +45,7 @@ final class AudioEngine: NSObject, @unchecked Sendable, AVCaptureAudioDataOutput
         self.levelCallback = levelCallback
         lock.lock()
         samples = []
+        peakLevel = 0
         lock.unlock()
 
         var device: AVCaptureDevice?
@@ -116,6 +124,7 @@ final class AudioEngine: NSObject, @unchecked Sendable, AVCaptureAudioDataOutput
 
         let channelSamples = Array(UnsafeBufferPointer(start: channelData, count: frameLength))
         lock.lock()
+        peakLevel = max(peakLevel, rms)
         inputSampleRate = asbd.mSampleRate
         samples.append(contentsOf: channelSamples)
         lock.unlock()
@@ -130,10 +139,10 @@ final class AudioEngine: NSObject, @unchecked Sendable, AVCaptureAudioDataOutput
         session = nil
         levelCallback = nil
 
+        // Samples are kept (cleared on next start) so the chunker can still read the tail after stop.
         lock.lock()
         let captured = samples
         let rate = inputSampleRate
-        samples = []
         lock.unlock()
 
         owLog("[AudioEngine] Captured \(captured.count) samples at \(rate)Hz")
@@ -141,9 +150,16 @@ final class AudioEngine: NSObject, @unchecked Sendable, AVCaptureAudioDataOutput
         return resampleTo16kHz(captured, fromRate: rate)
     }
 
+    /// Raw input-rate samples captured so far, starting at `index`. Safe to call while recording.
+    func rawSamples(from index: Int) -> (samples: [Float], rate: Double) {
+        lock.lock(); defer { lock.unlock() }
+        guard index < samples.count else { return ([], inputSampleRate) }
+        return (Array(samples[max(0, index)...]), inputSampleRate)
+    }
+
     // MARK: - Resampling
 
-    private func resampleTo16kHz(_ input: [Float], fromRate: Double) -> [Float]? {
+    func resampleTo16kHz(_ input: [Float], fromRate: Double) -> [Float]? {
         let targetRate: Double = 16000
 
         if abs(fromRate - targetRate) < 1.0 {

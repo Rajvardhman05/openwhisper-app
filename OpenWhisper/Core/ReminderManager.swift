@@ -167,6 +167,7 @@ final class ReminderManager {
             "model": "qwen2.5:3b",
             "prompt": prompt,
             "stream": false,
+            "keep_alive": "10m",  // reminders are rare; don't pin a second model in memory
             "options": [
                 "temperature": 0.1,
                 "num_predict": 100

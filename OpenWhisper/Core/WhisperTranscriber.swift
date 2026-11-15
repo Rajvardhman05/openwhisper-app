@@ -55,14 +55,16 @@ final class WhisperTranscriber: @unchecked Sendable {
     }
 
     /// Transcribe 16kHz mono Float32 audio to text
-    func transcribe(audioData: [Float], language: String) async throws -> String {
+    /// `vocabulary` (names, jargon) is fed to Whisper as its conditioning prompt so it favours those spellings.
+    /// `context` is the text spoken just before this audio (previous chunk); it keeps casing and flow continuous.
+    func transcribe(audioData: [Float], language: String, vocabulary: [String] = [], context: String = "") async throws -> String {
         guard let whisperKit else {
             throw TranscriberError.modelNotLoaded
         }
 
         owLog("[Whisper] Transcribing with language='\(language)' task=transcribe samples=\(audioData.count)")
 
-        let options = DecodingOptions(
+        var options = DecodingOptions(
             task: .transcribe,  // Transcribe in original language, NOT translate to English
             language: language.isEmpty ? nil : language,
             temperature: 0.0,
@@ -74,6 +76,17 @@ final class WhisperTranscriber: @unchecked Sendable {
             logProbThreshold: -1.0,
             noSpeechThreshold: 0.6
         )
+
+        if !vocabulary.isEmpty || !context.isEmpty, let tokenizer = whisperKit.tokenizer {
+            var prompt = vocabulary.isEmpty ? "" : " " + vocabulary.joined(separator: ", ") + "."
+            if !context.isEmpty {
+                // Last ~30 words only: Whisper's prompt window is small and long prompts slow decoding.
+                prompt += " " + context.split(separator: " ").suffix(30).joined(separator: " ")
+            }
+            options.promptTokens = tokenizer.encode(text: prompt)
+                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+            owLog("[Whisper] Prompt: \(vocabulary.count) vocab word(s), context \(context.isEmpty ? "none" : "yes")")
+        }
 
         let results = try await whisperKit.transcribe(
             audioArray: audioData,

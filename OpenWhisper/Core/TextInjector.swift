@@ -11,7 +11,7 @@ final class TextInjector: @unchecked Sendable {
         pasteboard.setString(text, forType: .string)
     }
 
-    /// Paste text into the target app
+    /// Paste text into the target app, then put the user's previous clipboard back.
     func pasteText(_ text: String, targetApp: NSRunningApplication? = nil) {
         // Filter junk
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,8 +22,9 @@ final class TextInjector: @unchecked Sendable {
 
         owLog("[TextInjector] Starting paste (\(cleaned.count) chars)")
 
-        // Always put text on clipboard first
+        let saved = snapshotClipboard()
         copyToClipboard(cleaned)
+        let ourChangeCount = NSPasteboard.general.changeCount
 
         // Activate the target app
         if let app = targetApp {
@@ -34,22 +35,49 @@ final class TextInjector: @unchecked Sendable {
         // Wait for app to come to front, then paste via CGEvent
         let delay: TimeInterval = 0.5
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
-            // Log what's actually frontmost right now
             let frontmost = NSWorkspace.shared.frontmostApplication
             owLog("[TextInjector] Frontmost at paste time: \(frontmost?.localizedName ?? "none") (pid \(frontmost?.processIdentifier ?? 0))")
-            owLog("[TextInjector] AXIsProcessTrusted: \(AXIsProcessTrusted())")
-
-            // Method 1: CGEvent Cmd+V (works in terminals, editors, everywhere IF accessibility is granted)
-            owLog("[TextInjector] Posting CGEvent Cmd+V...")
             self.simulateCmdV()
 
-            // Method 2: After a short delay, also try AXUIElement for apps where CGEvent fails
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [self] in
-                // Check if clipboard still has our text (if it does, paste probably didn't work)
-                let clipText = NSPasteboard.general.string(forType: .string)
-                owLog("[TextInjector] Post-paste clipboard check: \(clipText == cleaned ? "unchanged (paste may have failed)" : "changed (paste likely worked)")")
+            // Give the target app time to read the clipboard before restoring it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [self] in
+                // Skip if anything else wrote to the clipboard in the meantime.
+                guard NSPasteboard.general.changeCount == ourChangeCount else {
+                    owLog("[TextInjector] Clipboard changed since paste — not restoring")
+                    return
+                }
+                self.restoreClipboard(saved)
             }
         }
+    }
+
+    // MARK: - Clipboard preservation
+
+    private typealias ClipboardSnapshot = [[NSPasteboard.PasteboardType: Data]]
+
+    private func snapshotClipboard() -> ClipboardSnapshot {
+        let items = NSPasteboard.general.pasteboardItems ?? []
+        return items.map { item in
+            var entry: [NSPasteboard.PasteboardType: Data] = [:]
+            for type in item.types {
+                if let data = item.data(forType: type) { entry[type] = data }
+            }
+            return entry
+        }
+    }
+
+    private func restoreClipboard(_ snapshot: ClipboardSnapshot) {
+        // Nothing was on the clipboard before: leave the dictated text there.
+        guard !snapshot.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let items = snapshot.map { entry -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            for (type, data) in entry { item.setData(data, forType: type) }
+            return item
+        }
+        pasteboard.writeObjects(items)
+        owLog("[TextInjector] Restored previous clipboard (\(snapshot.count) item(s))")
     }
 
     /// Simulate Cmd+V via CGEvent
