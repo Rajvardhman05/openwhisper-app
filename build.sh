@@ -11,6 +11,10 @@ APP_DIR="build/OpenWhisper.app/Contents"
 EXEC_SRC=".build/debug/OpenWhisper"
 BUNDLE_SRC=".build/debug/OpenWhisper_OpenWhisper.bundle"
 
+# Scaffold the .app bundle structure (build/ is gitignored, so this never pre-exists on a fresh clone)
+mkdir -p "$APP_DIR/MacOS" "$APP_DIR/Resources"
+cp "OpenWhisper/Info.plist" "$APP_DIR/Info.plist"
+
 # Copy executable
 cp "$EXEC_SRC" "$APP_DIR/MacOS/OpenWhisper"
 
